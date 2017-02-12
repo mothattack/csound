@@ -203,7 +203,7 @@ int musmon(CSOUND *csound)
 
     reverbinit(csound);
     dbfs_init(csound, csound->e0dbfs);
-    csound->nspout = csound->ksmps * csound->nchnls;  /* alloc spin & spout */
+    csound->nspout = CS_FLOAT_ALIGN(csound->ksmps) * csound->nchnls;  /* alloc spin & spout */
     csound->nspin = csound->ksmps * csound->inchnls; /* JPff: in preparation */
     csound->spin  = (MYFLT *) csound->Calloc(csound, csound->nspin * sizeof(MYFLT));
     csound->spraw = (MYFLT *) csound->Calloc(csound, csound->nspout * sizeof(MYFLT));

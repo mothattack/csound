@@ -429,7 +429,8 @@ int modak(CSOUND *csound, AOP *p)
 */
 #ifdef USE_SSE
 #include "emmintrin.h"
-#define AA_VEC(OPNAME,OP)	    \
+
+#define AA_VEC(OPNAME,OP, OPN)	    \
 int OPNAME(CSOUND *csound, AOP *p){ \
   MYFLT   *r, *a, *b; \
   __m128d va, vb; \
@@ -443,7 +444,7 @@ int OPNAME(CSOUND *csound, AOP *p){ \
       nsmps -= early;   \
       memset(&r[nsmps], '\0', early*sizeof(MYFLT));  \
   } \
-  end = nsmps/2; \
+  end = nsmps-early; \
   for (n=offset/2; n<end; n+=2) { \
    va = _mm_load_pd(&a[n]); \
    vb = _mm_load_pd(&b[n]); \
@@ -453,15 +454,15 @@ int OPNAME(CSOUND *csound, AOP *p){ \
   return OK; \
   } \
    else { \
-     *p->r = *p->a + *p->b;\
+     *p->r = *p->a OPN *p->b;\
       return OK; \
    }		 \
 } \
 
-AA_VEC(addaa,_mm_add_pd)
-AA_VEC(subaa,_mm_sub_pd)
-AA_VEC(mulaa,_mm_mul_pd)
-AA_VEC(divaa,_mm_div_pd)
+AA_VEC(addaa,_mm_add_pd,+)
+AA_VEC(subaa,_mm_sub_pd,-)
+AA_VEC(mulaa,_mm_mul_pd,*)
+AA_VEC(divaa,_mm_div_pd,/)
 
 #else
 AA(addaa,+)
@@ -1834,15 +1835,15 @@ int outq4(CSOUND *csound, OUTM *p)
     CSOUND_SPOUT_SPINUNLOCK
     return OK;
 }
-
+#include <emmintrin.h>
 inline static int outn(CSOUND *csound, uint32_t n, OUTX *p)
 {
     uint32_t nsmps =CS_KSMPS,  i, j, k=0;
     MYFLT *spout = csound->spraw;
-    if (csound->oparms->sampleAccurate) {
-      uint32_t offset = p->h.insdshead->ksmps_offset;
-      uint32_t early  = nsmps-p->h.insdshead->ksmps_no_end;
-
+    uint32_t offset = p->h.insdshead->ksmps_offset;
+    uint32_t early  = p->h.insdshead->ksmps_no_end;
+    if (early|offset) {
+      early = nsmps- early;
       CSOUND_SPOUT_SPINLOCK
       if (!csound->spoutactive) {
         memset(spout, '\0', csound->nspout*sizeof(MYFLT));
@@ -1877,11 +1878,21 @@ inline static int outn(CSOUND *csound, uint32_t n, OUTX *p)
         csound->spoutactive = 1;
       }
       else {
+        __m128d a,b,c;
         for (i=0; i<n; i++) {
-          for (j=0; j<nsmps; j++) {
-            spout[k + j] += p->asig[i][j];
+          if (((int)(&p->asig[i])&16)==0) {
+            for (j=0; j<nsmps; j+=2) {
+              a = _mm_load_pd(&spout[k + j]);
+              b = _mm_load_pd(&p->asig[i][j]);
+              c = _mm_add_pd(a, b);
+              _mm_store_pd(&spout[k + j], c);
+            }
           }
-          k += nsmps;
+          else
+            for (j=0; j<nsmps; j++) {
+              spout[k + j] += p->asig[i][j];
+            }
+          k += CS_FLOAT_ALIGN(nsmps);
         }
       }
       CSOUND_SPOUT_SPINUNLOCK
@@ -1910,10 +1921,10 @@ int outarr(CSOUND *csound, OUTARRAY *p)
     uint32_t n = p->tabin->sizes[0];
     MYFLT *data = p->tabin->data;
     MYFLT *spout = csound->spraw;
-    if (csound->oparms->sampleAccurate) {
-      uint32_t offset = p->h.insdshead->ksmps_offset;
-      uint32_t early  = nsmps-p->h.insdshead->ksmps_no_end;
-
+    uint32_t offset = p->h.insdshead->ksmps_offset;
+    uint32_t early  = p->h.insdshead->ksmps_no_end;
+    if (offset|early) {
+      early = ksmps-early;
       CSOUND_SPOUT_SPINLOCK
       if (!csound->spoutactive) {
         memset(spout, '\0', csound->nspout*sizeof(MYFLT)); 

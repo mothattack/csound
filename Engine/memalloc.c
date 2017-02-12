@@ -29,13 +29,29 @@
    allocator.
 */
 #if defined(BETA) && !defined(MEMDEBUG)
-#define MEMDEBUG  1
+#define MEMDEBUG  0
 #endif
 
 #define MEMALLOC_MAGIC  0x6D426C6B
 /* The memory list must be controlled by mutex */
 #define CSOUND_MEM_SPINLOCK csoundSpinLock(&csound->memlock);
 #define CSOUND_MEM_SPINUNLOCK csoundSpinUnLock(&csound->memlock);
+
+void* mymalloc(size_t n)
+{
+    void* p;
+    int res = posix_memalign(&p, 16, n);
+    if (UNLIKELY(res!=0)) return NULL;
+    return p;
+}
+void* mycalloc(size_t n, size_t m)
+{
+    void* p;
+    int res = posix_memalign(&p, 16, n*m);
+    if (UNLIKELY(res!=0)) return NULL;
+    memset(p, 0, n*m);
+    return p;
+}
 
 typedef struct memAllocBlock_s {
 #ifdef MEMDEBUG
@@ -46,7 +62,7 @@ typedef struct memAllocBlock_s {
     struct memAllocBlock_s  *nxt;       /* next structure in chain      */
 } memAllocBlock_t;
 
-#define HDR_SIZE    (((int) sizeof(memAllocBlock_t) + 7) & (~7))
+#define HDR_SIZE    (((int) sizeof(memAllocBlock_t) + 15) & (~15))
 #define ALLOC_BYTES(n)  ((size_t) HDR_SIZE + (size_t) (n))
 #define DATA_PTR(p) ((void*) ((unsigned char*) (p) + (int) HDR_SIZE))
 #define HDR_PTR(p)  ((memAllocBlock_t*) ((unsigned char*) (p) - (int) HDR_SIZE))
@@ -72,7 +88,7 @@ void *mmalloc(CSOUND *csound, size_t size)
     }
 #endif
     /* allocate memory */
-    if (UNLIKELY((p = malloc(ALLOC_BYTES(size))) == NULL)) {
+    if (UNLIKELY((p = mymalloc(ALLOC_BYTES(size))) == NULL)) {
         memdie(csound, size);     /* does a long jump */
     }
     /* link into chain */
@@ -110,7 +126,7 @@ void *mcalloc(CSOUND *csound, size_t size)
     }
 #endif
     /* allocate memory */
-    if (UNLIKELY((p = calloc(ALLOC_BYTES(size), (size_t) 1)) == NULL)) {
+    if (UNLIKELY((p = mycalloc(ALLOC_BYTES(size), (size_t) 1)) == NULL)) {
       memdie(csound, size);     /* does longjump */
     }
     /* link into chain */
