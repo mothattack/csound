@@ -21,8 +21,8 @@
 //
 //  You should have received a copy of the GNU Lesser General Public
 //  License along with The vst4cs library; if not, write to the Free Software
-//  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-//  02111-1307 USA
+//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+//  02110-1301 USA
 //
 //  Linking vst4cs statically or dynamically with other modules is making a
 //  combined work based on vst4cs. Thus, the terms and conditions of the GNU
@@ -165,10 +165,18 @@ public:
         if (!bChunk) for (int i = GetNumPrograms() -1; i >= 0; i--)
                        GetProgram(i)->fxVersion = v; }
     long GetNumPrograms() {
-        if (!bBank) return 0; return ((fxSet*)bBank)->numPrograms; }
+        if (!bBank) {
+            return 0;
+        }
+        return ((fxSet*)bBank)->numPrograms;
+    }
     long GetNumParams() { if (bChunk) return 0; return GetProgram(0)->numParams; }
     long GetChunkSize() {
-        if (!bChunk) return 0; return ((fxChunkSet *)bBank)->chunkSize; }
+        if (!bChunk) {
+            return 0;
+        }
+        return ((fxChunkSet *)bBank)->chunkSize;
+    }
     void *GetChunk() { if (!bChunk) return 0; return ((fxChunkSet *)bBank)->chunk; }
     bool SetChunk(void *chunk) {
         if (!bChunk) return false;
